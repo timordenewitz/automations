@@ -1,0 +1,81 @@
+# In die Home Assistant UI einfuegen: Einstellungen -> Automatisierungen &
+# Szenen -> Automatisierung erstellen -> Neue Automatisierung erstellen ->
+# (Drei-Punkte-Menue) -> In YAML bearbeiten. Dort alles markieren und durch
+# das Folgende ersetzen.
+#
+# Dieser Editor prueft EINE Automatisierung als Mapping. Eine Liste (Block
+# mit fuehrendem `- id:`, so wie automations.yaml sie will) quittiert er mit
+# "Message malformed: not a valid option at ['0']" - deshalb hier ohne `-`,
+# ohne Einrueckung und ohne `id:` (die vergibt die UI selbst).
+#
+# Fuer automations.yaml stattdessen velux_roof_window_co2_airing.yaml.
+alias: Velux Dachfenster - CO2 Lueftung
+description: >-
+  Lueftet tagsueber automatisch, wenn das CO2 im Alpstuga ueber 1000 ppm
+  steigt: Fenster auf, und wieder zu, sobald der Wert unter 800 ppm faellt
+  oder spaetestens nach 15 Minuten - je nachdem, was zuerst eintritt.
+  Laeuft nur von 07:00 bis 21:00, damit es sich nicht mit der
+  Nacht-Temperatursteuerung um dasselbe Fenster streitet.
+mode: single
+max_exceeded: silent
+
+trigger:
+  # Schnelle Reaktion auf den eigentlichen Anstieg.
+  - platform: numeric_state
+    entity_id: sensor.alpstuga_air_quality_monitor_carbon_dioxide
+    above: 1000
+    for: "00:05:00"
+    id: co2_high
+
+  # Auffangnetz alle 15 Minuten. Deckt drei Faelle ab, die ein reiner
+  # Schwellwert-Trigger nicht sieht: der Wert war um 07:00 schon ueber
+  # 1000 (nach einer Nacht im Schlafzimmer der Normalfall), 15 Minuten
+  # Lueften haben nicht gereicht und es muss nachgelueftet werden, oder
+  # Home Assistant wurde neu gestartet.
+  - platform: time_pattern
+    minutes: "/15"
+    id: recheck
+
+condition:
+  # Tagfenster - exakt das Gegenstueck zu den 21:00-07:00 der
+  # Temperatur-Automation, ohne Ueberlappung und ohne Luecke.
+  - condition: time
+    after: "07:00:00"
+    before: "21:00:00"
+
+  # Gilt fuer beide Trigger: beim time_pattern ist das die eigentliche
+  # Pruefung, beim Anstieg nur eine guenstige Doppelsicherung.
+  - condition: numeric_state
+    entity_id: sensor.alpstuga_air_quality_monitor_carbon_dioxide
+    above: 1000
+
+  # Nur ein geschlossenes Fenster wird angefasst. Ein Fenster, das du
+  # selbst geoeffnet hast, gehoert dir - sonst wuerde diese Automation es
+  # dir nach spaetestens 15 Minuten vor der Nase zumachen.
+  - condition: state
+    entity_id: cover.velux_window_roof_window
+    state: closed
+
+action:
+  - service: cover.open_cover
+    target:
+      entity_id: cover.velux_window_roof_window
+
+  # "Was zuerst kommt": entweder der Wert faellt unter 800, oder der
+  # Timeout laeuft ab. continue_on_timeout sorgt dafuer, dass auch der
+  # Timeout-Fall unten weiter zum Schliessen fuehrt.
+  - wait_for_trigger:
+      - platform: numeric_state
+        entity_id: sensor.alpstuga_air_quality_monitor_carbon_dioxide
+        below: 800
+    timeout: "00:15:00"
+    continue_on_timeout: true
+
+  - service: cover.close_cover
+    target:
+      entity_id: cover.velux_window_roof_window
+
+  # Zwangspause. Bei `mode: single` werden waehrend dieser Zeit alle
+  # weiteren Trigger verworfen, damit das Fenster nach einem Timeout mit
+  # immer noch hohem CO2 nicht sofort wieder aufgeht.
+  - delay: "00:10:00"

@@ -9,6 +9,8 @@ Settings -> Automations -> (new automation) -> Edit in YAML.
 | --- | --- |
 | [`automations/velux_roof_window_night_temperature.yaml`](automations/velux_roof_window_night_temperature.yaml) | Closes the Velux roof window at night below 19.7 deg C, reopens it above 20.3 deg C. For `automations.yaml`. |
 | [`automations/velux_roof_window_night_temperature.ui.yaml`](automations/velux_roof_window_night_temperature.ui.yaml) | The same automation as a single mapping, for the UI's "Edit in YAML" box. |
+| [`automations/velux_roof_window_co2_airing.yaml`](automations/velux_roof_window_co2_airing.yaml) | Airs the room during the day when CO2 goes over 1000 ppm. For `automations.yaml`. |
+| [`automations/velux_roof_window_co2_airing.ui.yaml`](automations/velux_roof_window_co2_airing.ui.yaml) | The same automation as a single mapping, for the UI's "Edit in YAML" box. |
 
 ## Which copy do I paste?
 
@@ -65,3 +67,41 @@ Notes on the behaviour, so the edges aren't surprising:
 - **There is no rain or wind guard.** If the Velux integration does not
   already close on rain itself, consider adding a condition on a rain sensor
   before the open branch.
+
+## Velux roof window - CO2 airing
+
+| Setting | Value | Where to change it |
+| --- | --- | --- |
+| Day window | 07:00 - 21:00 | The `time` condition `after:`/`before:` |
+| Open above | 1000 ppm | The `numeric_state` trigger `above:` **and** the `numeric_state` condition |
+| Close below | 800 ppm | The `below:` inside `wait_for_trigger` |
+| Max airing | 15 minutes | `timeout:` on the `wait_for_trigger` |
+| Pause after closing | 10 minutes | The trailing `delay:` |
+| Re-check interval | 15 minutes | The `time_pattern` trigger |
+
+Edit the same row in **both** files.
+
+Both automations drive the same window, so they are separated in time rather
+than by priority: 07:00-21:00 belongs to CO2, 21:00-07:00 to temperature.
+`after:` is inclusive and `before:` exclusive in Home Assistant, so the two
+windows tile the day exactly - no overlap, no gap.
+
+- **Closing is "whichever comes first".** `wait_for_trigger` waits for CO2 to
+  fall below 800; `timeout` with `continue_on_timeout: true` closes anyway
+  after 15 minutes. No helper entity is needed for this.
+- **Only a closed window is ever touched.** A window you opened yourself is
+  left alone, rather than being shut in your face 15 minutes later.
+- **`mode: single` is load-bearing.** The whole airing cycle - open, wait,
+  close, pause - is one run, and further triggers are dropped while it is in
+  progress. That is what stops a window that timed out at 1100 ppm from
+  reopening immediately.
+- **The `time_pattern` trigger is the catch-up**, covering the three cases a
+  threshold crossing misses: already over 1000 at 07:00 (after a night in a
+  bedroom, the normal case), 15 minutes of airing were not enough, or Home
+  Assistant restarted.
+- **Known limitation: a restart mid-airing leaves the window open.**
+  `wait_for_trigger` does not survive a restart, and the catch-up only acts on
+  a *closed* window, so nothing closes it again. Closing it automatically
+  would mean closing manually opened windows too. If this turns out to matter,
+  the fix is an `input_boolean` helper marking "airing in progress", which
+  does survive a restart.
