@@ -43,6 +43,14 @@
       at: "21:00:00"
       id: night_start
 
+    # Same catch-up problem after a Home Assistant restart: the
+    # numeric_state triggers forget which side of the threshold they were
+    # on, so a restart mid-night would otherwise leave the window open
+    # until the temperature crosses 19.7 from above all over again.
+    - platform: homeassistant
+      event: start
+      id: ha_start
+
   condition:
     # The whole automation is asleep outside the night window - the window
     # stays wherever you left it during the day.
@@ -51,6 +59,16 @@
       before: "07:00:00"
 
   action:
+    # On a restart the sensor is often still `unknown` for a minute or two
+    # while its integration reconnects, and a numeric_state condition against
+    # `unknown` is simply false - the catch-up would quietly do nothing.
+    # Only the restart path waits; the threshold crossings act immediately.
+    - if:
+        - condition: trigger
+          id: ha_start
+      then:
+        - delay: "00:02:00"
+
     - choose:
         # ---- Too cold -> close ----
         - conditions:
@@ -61,7 +79,7 @@
                 - condition: and
                   conditions:
                     - condition: trigger
-                      id: night_start
+                      id: [night_start, ha_start]
                     - condition: numeric_state
                       entity_id: sensor.alpstuga_air_quality_monitor_temperature
                       below: 19.7
