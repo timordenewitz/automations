@@ -9,7 +9,7 @@
 - id: velux_roof_window_night_temperature
   alias: Velux roof window - night temperature control
   description: >-
-    Between 22:00 and 07:00, closes the roof window when the Alpstuga
+    Between 21:00 and 07:00, closes the roof window when the Alpstuga
     temperature drops below 19.7 deg C and opens it again once it rises above
     20.3 deg C. The 0.6 deg gap between the two thresholds is deliberate
     hysteresis so the window does not flap around a single set point.
@@ -36,14 +36,14 @@
     # would never close the window. Keep this time in sync with the
     # `after:` value in the time condition below.
     - trigger: time
-      at: "22:00:00"
+      at: "21:00:00"
       id: night_start
 
   conditions:
     # The whole automation is asleep outside the night window - the window
     # stays wherever you left it during the day.
     - condition: time
-      after: "22:00:00"
+      after: "21:00:00"
       before: "07:00:00"
 
   actions:
