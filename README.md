@@ -7,7 +7,26 @@ Settings -> Automations -> (new automation) -> Edit in YAML.
 
 | File | What it does |
 | --- | --- |
-| [`automations/velux_roof_window_night_temperature.yaml`](automations/velux_roof_window_night_temperature.yaml) | Closes the Velux roof window at night below 19.7 deg C, reopens it above 20.3 deg C. |
+| [`automations/velux_roof_window_night_temperature.yaml`](automations/velux_roof_window_night_temperature.yaml) | Closes the Velux roof window at night below 19.7 deg C, reopens it above 20.3 deg C. For `automations.yaml`. |
+| [`automations/velux_roof_window_night_temperature.ui.yaml`](automations/velux_roof_window_night_temperature.ui.yaml) | The same automation as a single mapping, for the UI's "Edit in YAML" box. |
+
+## Which copy do I paste?
+
+The two files hold the same automation in the two shapes Home Assistant
+accepts, and they must be kept in step when either is edited.
+
+- **`automations.yaml`** is a *list* of automations, so its copy keeps the
+  leading `-`, the two-space indentation, and an explicit `id:`.
+- **The UI's "Edit in YAML" box** validates one automation *mapping*, so its
+  copy has no leading `-`, no indentation and no `id:` (the UI assigns one).
+
+Pasting the list form into the UI box fails with
+`Message malformed: not a valid option at ['0']` - `['0']` being the index of
+the first list entry. The same error from `automations.yaml` means an
+unrecognised key inside that entry instead; the usual cause is the modern
+`triggers:`/`conditions:`/`actions:` schema on a core older than 2024.10.
+Both files here use the legacy `trigger:`/`condition:`/`action:` keys with
+`platform:` and `service:`, which every version accepts.
 
 ## Velux roof window - night temperature control
 
@@ -17,6 +36,8 @@ Settings -> Automations -> (new automation) -> Edit in YAML.
 | Close below | 19.7 deg C | `numeric_state` trigger `below:` (in two places: the trigger and the night-start condition) |
 | Open above | 20.3 deg C | `numeric_state` trigger `above:` |
 | Debounce | 5 minutes | `for:` on both `numeric_state` triggers |
+
+Edit the same row in **both** files.
 
 Notes on the behaviour, so the edges aren't surprising:
 

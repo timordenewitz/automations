@@ -1,0 +1,88 @@
+# Paste this into the Home Assistant UI: Settings -> Automations & Scenes ->
+# Create automation -> Create new automation -> (three-dot menu) -> Edit in YAML.
+# Select everything already in that box and replace it with what follows.
+#
+# That editor validates a SINGLE automation mapping. Handing it a list (a
+# block starting with `- id:`, like automations.yaml wants) is what produces
+# "Message malformed: not a valid option at ['0']" - so this copy has no
+# leading `-`, no indentation, and no `id:` (the UI assigns its own).
+#
+# For automations.yaml instead, use velux_roof_window_night_temperature.yaml.
+alias: Velux roof window - night temperature control
+description: >-
+  Between 21:00 and 07:00, closes the roof window when the Alpstuga
+  temperature drops below 19.7 deg C and opens it again once it rises above
+  20.3 deg C. The 0.6 deg gap between the two thresholds is deliberate
+  hysteresis so the window does not flap around a single set point.
+mode: single
+max_exceeded: silent
+
+trigger:
+  # Temperature fell through the lower threshold.
+  - platform: numeric_state
+    entity_id: sensor.alpstuga_air_quality_monitor_temperature
+    below: 19.7
+    for: "00:05:00"
+    id: too_cold
+
+  # Temperature rose back through the upper threshold.
+  - platform: numeric_state
+    entity_id: sensor.alpstuga_air_quality_monitor_temperature
+    above: 20.3
+    for: "00:05:00"
+    id: warm_enough
+
+  # A numeric_state trigger only fires when the value *crosses* the
+  # threshold. Without this, a night that starts out already below 19.7
+  # would never close the window. Keep this time in sync with the
+  # `after:` value in the time condition below.
+  - platform: time
+    at: "21:00:00"
+    id: night_start
+
+condition:
+  # The whole automation is asleep outside the night window - the window
+  # stays wherever you left it during the day.
+  - condition: time
+    after: "21:00:00"
+    before: "07:00:00"
+
+action:
+  - choose:
+      # ---- Too cold -> close ----
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: too_cold
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: night_start
+                  - condition: numeric_state
+                    entity_id: sensor.alpstuga_air_quality_monitor_temperature
+                    below: 19.7
+          # Don't send a redundant command to an already-closed window.
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: cover.velux_window_roof_window
+                state: closed
+        sequence:
+          - service: cover.close_cover
+            target:
+              entity_id: cover.velux_window_roof_window
+
+      # ---- Warm enough again -> open ----
+      - conditions:
+          - condition: trigger
+            id: warm_enough
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: cover.velux_window_roof_window
+                state: open
+        sequence:
+          - service: cover.open_cover
+            target:
+              entity_id: cover.velux_window_roof_window

@@ -1,10 +1,14 @@
-# Paste this block into automations.yaml (it is a top-level list entry), or
-# import it via Settings -> Automations -> Edit in YAML.
+# Paste this block into automations.yaml - it is a top-level list entry, so
+# it must keep the leading `-` and sit alongside your other automations.
 #
-# Uses the modern `triggers:` / `conditions:` / `actions:` schema (Home
-# Assistant 2024.10+). On older cores, rename those keys to `trigger:` /
-# `condition:` / `action:`, `trigger:` inside a trigger back to `platform:`,
-# and `action:` inside a step back to `service:`.
+# To paste into the UI instead (Settings -> Automations -> ... -> Edit in
+# YAML), use velux_roof_window_night_temperature.ui.yaml - that editor wants
+# a single automation mapping, not a list, and rejects a list with
+# "Message malformed: not a valid option at ['0']".
+#
+# This file uses the legacy `trigger:` / `condition:` / `action:` schema with
+# `platform:` and `service:`, which every Home Assistant version understands,
+# including current ones.
 
 - id: velux_roof_window_night_temperature
   alias: Velux roof window - night temperature control
@@ -16,16 +20,16 @@
   mode: single
   max_exceeded: silent
 
-  triggers:
+  trigger:
     # Temperature fell through the lower threshold.
-    - trigger: numeric_state
+    - platform: numeric_state
       entity_id: sensor.alpstuga_air_quality_monitor_temperature
       below: 19.7
       for: "00:05:00"
       id: too_cold
 
     # Temperature rose back through the upper threshold.
-    - trigger: numeric_state
+    - platform: numeric_state
       entity_id: sensor.alpstuga_air_quality_monitor_temperature
       above: 20.3
       for: "00:05:00"
@@ -35,18 +39,18 @@
     # threshold. Without this, a night that starts out already below 19.7
     # would never close the window. Keep this time in sync with the
     # `after:` value in the time condition below.
-    - trigger: time
+    - platform: time
       at: "21:00:00"
       id: night_start
 
-  conditions:
+  condition:
     # The whole automation is asleep outside the night window - the window
     # stays wherever you left it during the day.
     - condition: time
       after: "21:00:00"
       before: "07:00:00"
 
-  actions:
+  action:
     - choose:
         # ---- Too cold -> close ----
         - conditions:
@@ -68,7 +72,7 @@
                   entity_id: cover.velux_window_roof_window
                   state: closed
           sequence:
-            - action: cover.close_cover
+            - service: cover.close_cover
               target:
                 entity_id: cover.velux_window_roof_window
 
@@ -82,6 +86,6 @@
                   entity_id: cover.velux_window_roof_window
                   state: open
           sequence:
-            - action: cover.open_cover
+            - service: cover.open_cover
               target:
                 entity_id: cover.velux_window_roof_window
